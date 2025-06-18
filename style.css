@@ -1,0 +1,556 @@
+/* --- Global Styles --- */
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #e0f2f7 0%, #c1e4f3 100%);
+    color: #333;
+    overflow: auto; /* Quan trọng để ngăn cuộn trang không mong muốn */
+    box-sizing: border-box;
+}
+/* --- Game Container --- */
+.game-container {
+    background-color: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+
+    /* Điều chỉnh kích thước game-container */
+    height: 95vh; /* Giữ nguyên chiều cao gần bằng viewport */
+    width: auto; /* Để chiều rộng tự động điều chỉnh theo nội dung flex bên trong */
+    max-width: 1400px; /* Giữ giới hạn tối đa */
+    min-width: 800px; /* Giữ giới hạn tối thiểu */
+    max-height: 900px; /* Giữ max-height */
+    min-height: 600px; /* Giữ min-height */
+
+    display: flex;
+    flex-direction: row;
+    align-items: stretch; /* Đảm bảo các flex item con căng đầy chiều cao */
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* --- Game Board Area --- */
+.game-board-area {
+    /* flex: 3; */ /* Bỏ thuộc tính flex này */
+    width: 95vh; /* CHÌA KHÓA: Chiều rộng bằng chiều cao của viewport (gần bằng height của game-container) */
+    height: 100%; /* Lấp đầy chiều cao của game-container */
+    aspect-ratio: 1 / 1; /* Buộc nó là hình vuông */
+    
+    display: flex; /* Vẫn là flex container */
+    justify-content: center; /* Căn giữa board-wrapper theo chiều ngang */
+    align-items: center; /* Căn giữa board-wrapper theo chiều dọc */
+    padding: 0; /* Giữ padding là 0 ở đây */
+    background-color: #f7fcff; /* Màu nền của khu vực chơi cờ */
+    box-sizing: border-box;
+    min-width: 0; /* Cho phép co lại nếu cần thiết */
+    min-height: 0; /* Cho phép co lại nếu cần thiết */
+    overflow: auto; /* Cho phép cuộn */
+    cursor: grab;
+
+    flex-shrink: 0; /* Rất quan trọng: Ngăn không cho nó co lại */
+    flex-grow: 0; /* Rất quan trọng: Ngăn không cho nó giãn ra nếu không gian không đủ */
+}
+
+.game-board-area.grabbing {
+    cursor: grabbing;
+}
+
+/* --- Game Controls Area --- */
+.game-controls-area {
+    /* flex: 1; */ /* Bỏ thuộc tính flex này */
+    width: auto; /* Chiều rộng tự động co lại để vừa nội dung còn lại */
+    flex-grow: 1; /* Cho phép nó mở rộng để lấp đầy không gian còn lại */
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    background-color: #ffffff;
+    border-left: 1px solid #eef7f9;
+    overflow-y: auto;
+    min-width: 250px; /* Giữ min-width để các điều khiển không bị quá nhỏ */
+    position: relative;
+    z-index: 1;
+}
+
+h1 {
+    color: #1e88e5; /* Màu xanh mạnh hơn */
+    margin-bottom: 25px; /* Tăng margin-bottom */
+    font-size: 2.5em; /* Tăng kích thước heading */
+    font-weight: 700;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.08); /* Bóng đổ mềm hơn cho text */
+    letter-spacing: 1.5px;
+    width: 100%;
+    text-align: center;
+    position: relative;
+}
+h1::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 4px;
+    background-color: #1e88e5;
+    border-radius: 2px;
+}
+
+/* --- Game Settings --- */
+.game-settings {
+    margin-bottom: 15px;
+    font-size: 1.15em;
+    color: #444;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.game-settings label {
+    font-weight: 600;
+    color: #333;
+}
+
+.game-settings select {
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #cce7ff;
+    background-color: #eaf7ff;
+    font-size: 1.05em;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.3s ease;
+    width: 90%;
+    max-width: 220px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%231e88e5%22%20d%3D%22M287%2C118.8L146.2%2C259.6L5.4%2C118.8c-2.4-2.4-5.6-3.8-9-3.8c-3.4%2C0-6.6%2C1.4-9%2C3.8l-15.6-15.6c-2.4-2.4-3.8-5.6-3.8-9c0-3.4%2C1.4-6.6%2C3.8-9L137.2%2C3.4c2.4-2.4%2C5.6-3.8%2C9-3.8c3.4%2C0%2C6.6%2C1.4%2C9%2C3.8l132.8%2C132.8c2.4%2C2.4%2C3.8%2C5.6%2C3.8%2C9c0%2C3.4-1.4%2C6.6-3.8%2C9L287%2C118.8z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px;
+}
+
+.game-settings select:hover {
+    border-color: #99d2ff;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.1);
+}
+.game-settings select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+/* --- Game Info Section --- */
+.game-info {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 15px 0;
+    border-bottom: 1px solid #eef7f9;
+    border-top: 1px solid #eef7f9;
+}
+
+.game-info p {
+    font-size: 1.15em;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 10px;
+}
+
+#current-player {
+    font-weight: 700;
+    font-size: 1.3em;
+    color: #ff6347;
+    margin-left: 0;
+    display: block;
+    animation: pulse 1.5s infinite ease-in-out;
+}
+
+/* --- Buttons --- */
+button {
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    font-size: 1.05em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+    width: 90%;
+    max-width: 220px;
+    margin-top: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+#reset-button {
+    background-color: #ffb300;
+    color: #fff;
+    box-shadow: 0 5px 15px rgba(255, 179, 0, 0.3);
+}
+
+#reset-button:hover {
+    background-color: #e6a200;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(255, 179, 0, 0.4);
+}
+
+#reset-button:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 10px rgba(255, 179, 0, 0.3);
+}
+
+.game-modes button {
+    background-color: #1e88e5;
+    color: white;
+    box-shadow: 0 5px 15px rgba(30, 136, 229, 0.3);
+}
+
+.game-modes button:hover {
+    background-color: #1565c0;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(30, 136, 229, 0.4);
+}
+
+.game-modes button:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 10px rgba(30, 136, 229, 0.3);
+}
+
+/* --- Board Styles --- */
+.board {
+    display: grid;
+    gap: 1px;
+    background-color: #8bb8e4;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
+
+    /* Quan trọng cho chế độ cố định: Lấp đầy board-wrapper và là hình vuông */
+    width: 100%; 
+    height: 100%; 
+    aspect-ratio: 1 / 1; 
+    object-fit: contain; 
+    margin: 0; 
+
+    /* Các thuộc tính này sẽ bị ghi đè bởi .scrollable-board */
+    max-width: unset; 
+    max-height: unset;
+}
+
+.board.scrollable-board {
+    width: auto; 
+    height: auto;
+    max-width: unset; 
+    max-height: unset;
+    aspect-ratio: unset; 
+    object-fit: unset;
+
+    min-width: 600px; /* Kích thước tối thiểu lớn cho board cuộn */
+    min-height: 600px; 
+    margin: 30px; /* Khoảng đệm cho board cuộn */
+}
+
+/* --- Board Wrapper --- */
+.board-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%; /* Sẽ lấp đầy 100% của game-board-area hình vuông */
+    height: 100%; /* Sẽ lấp đầy 100% của game-board-area hình vuông */
+    box-sizing: border-box;
+    padding: 20px; /* Tạo padding xung quanh bàn cờ cố định */
+    flex-shrink: 0; 
+    flex-grow: 0; 
+    /* Không cần aspect-ratio ở đây nữa vì game-board-area đã lo việc là hình vuông */
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.cell {
+    background-color: #e0f2f7; /* Nền xanh nhạt cho ô cờ */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 400;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    border: none; /* Bỏ border tạm thời */
+    box-sizing: border-box;
+    position: relative;
+    z-index: 0;
+}
+
+.cell:hover {
+    background-color: #cce9f5;
+    transform: scale(1.02);
+}
+
+/* Player Marks (Quân cờ) */
+.cell.X {
+    color: #ff6347;
+    font-weight: 600;
+    text-shadow: 1px 1px 3px rgba(255, 99, 71, 0.2);
+}
+
+.cell.O {
+    color: #4a8ee1;
+    font-weight: 600;
+    text-shadow: 1px 1px 3px rgba(74, 142, 225, 0.2);
+}
+
+/* Animation cho quân cờ khi được đặt */
+.cell.X::after, .cell.O::after {
+    content: attr(data-content);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0;
+    animation: fadeInScale 0.3s ease-out forwards;
+}
+
+/* Winner Cell Highlight */
+.cell.winner {
+    background-color: #ffdd72;
+    animation: winnerPulse 1s infinite alternate;
+}
+
+/* Style cho các ô tiềm năng của AI */
+.cell.ai-potential-move {
+    background-color: rgba(255, 255, 0, 0.2) !important; /* Dùng !important để đảm bảo hiển thị */
+    border: 1px dashed #ffc107 !important; /* Dùng !important */
+    box-shadow: 0 0 5px rgba(255, 255, 0, 0.5) !important; /* Dùng !important */
+}
+
+/* Hiệu ứng chấm tròn (tùy chọn, nếu bạn muốn dùng) */
+.cell.ai-potential-dot::before {
+    content: '';
+    display: block;
+    width: 15px; /* Kích thước chấm */
+    height: 15px;
+    background-color: #007bff; /* Màu chấm xanh */
+    border-radius: 50%;
+    opacity: 0.6;
+    animation: pulseDot 1.5s infinite alternate; /* Hiệu ứng nhấp nháy cho chấm */
+}
+
+/* Game Message */
+.game-message {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    font-size: 1.3em;
+    font-weight: 700;
+    color: #1e88e5;
+    min-height: 30px;
+    text-align: center;
+    width: 100%;
+    animation: slideInUp 0.5s ease-out;
+}
+
+.game-message.error {
+    color: #dc3545;
+}
+
+/* AI Performance Metrics */
+.ai-performance-metrics {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #f0f7f9;
+    border-radius: 12px;
+    border: 1px solid #e7f2f5;
+    width: 90%;
+    box-sizing: border-box;
+    text-align: left;
+    color: #555;
+    font-size: 1em;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.ai-performance-metrics p {
+    margin: 5px 0;
+    font-weight: 500;
+}
+
+.ai-performance-metrics span {
+    font-weight: bold;
+    color: #007bff;
+    font-family: 'Consolas', monospace;
+}
+
+/* Game Mode Buttons */
+.game-modes {
+    margin-top: auto;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 90%;
+}
+
+/* --- AI Mode Selection Styles --- */
+.ai-mode-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Khoảng cách giữa các nút AI con */
+    width: 100%; /* Đảm bảo chiếm toàn bộ chiều rộng của cha */
+    align-items: center; /* Căn giữa các nút AI con */
+    margin-top: 15px; /* Khoảng cách với nút "1 Người Chơi" */
+}
+
+.ai-mode-selection button {
+    background-color: #20c997; /* Màu xanh lá cây dễ chịu */
+    box-shadow: 0 4px 10px rgba(32, 201, 151, 0.25);
+}
+
+.ai-mode-selection button:hover {
+    background-color: #17a27b;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(32, 201, 151, 0.35);
+}
+
+.ai-mode-selection button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(32, 201, 151, 0.2);
+}
+
+/* Class để ẩn/hiện */
+.hidden {
+    display: none !important; /* Dùng !important để đảm bảo ghi đè các quy tắc khác */
+}
+
+/* --- Keyframe Animations --- */
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.9; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeInScale {
+    0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+@keyframes winnerPulse {
+    0% { box-shadow: 0 0 15px 5px rgba(255, 221, 114, 0.7); }
+    100% { box-shadow: 0 0 25px 8px rgba(255, 221, 114, 0.9); }
+}
+
+@keyframes slideInUp {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulseDot {
+    0% { transform: scale(0.8); opacity: 0.4; }
+    100% { transform: scale(1); opacity: 0.8; }
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 1024px) {
+    .game-container {
+        min-width: 600px;
+    }
+    .game-controls-area {
+        min-width: 250px;
+        padding: 20px;
+    }
+    h1 {
+        font-size: 2.2em;
+    }
+    .game-settings select, button {
+        max-width: 180px;
+    }
+}
+
+@media (max-width: 768px) {
+    .game-container {
+        flex-direction: column;
+        width: 95%;
+        height: auto;
+        min-width: unset;
+        padding: 20px;
+    }
+
+    .game-board-area {
+        width: 100%;
+        padding: 0;
+        margin-bottom: 25px;
+        order: 2;
+    }
+
+    .game-controls-area {
+        width: 100%;
+        border-left: none;
+        padding: 0;
+        order: 1;
+        margin-bottom: 20px;
+    }
+
+    h1 {
+        font-size: 2em;
+        margin-bottom: 25px;
+    }
+    h1::after {
+        bottom: -10px;
+    }
+
+    .game-settings, .game-info, .ai-performance-metrics, .game-modes {
+        width: 100%;
+        margin-bottom: 15px;
+    }
+    .game-settings select, button {
+        max-width: 100%;
+        width: 90%;
+    }
+    .game-message {
+        font-size: 1.1em;
+        margin-top: 20px;
+        margin-bottom: 15px;
+    }
+    .ai-performance-metrics {
+        font-size: 0.85em;
+        padding: 15px;
+    }
+    .game-modes {
+        margin-top: 20px;
+        margin-bottom: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .game-container {
+        padding: 10px;
+        border-radius: 10px;
+    }
+    h1 {
+        font-size: 1.8em;
+        margin-bottom: 20px;
+    }
+    .game-settings label, .game-info p {
+        font-size: 1em;
+    }
+    #current-player {
+        font-size: 1.2em;
+    }
+    .game-settings select, button {
+        padding: 10px 15px;
+        font-size: 0.95em;
+        border-radius: 6px;
+    }
+    .ai-performance-metrics {
+        font-size: 0.85em;
+        padding: 10px;
+    }
+}

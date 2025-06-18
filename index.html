@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Cờ Caro (TicTacToe)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:," type="image/x-icon">
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-board-area">
+            <div class="board-wrapper"> <div id="board" class="board">
+                    </div>
+            </div>
+        </div>
+
+        <div class="game-controls-area">
+            <h1>Chơi Cờ Caro</h1>
+            
+            <div class="game-settings">
+                <label for="board-size">Kích thước bàn cờ:</label>
+                <select id="board-size">
+                    <option value="3">3x3 (TicTacToe)</option>
+                    <option value="5">5x5</option>
+                    <option value="7">7x7</option>
+                    <option value="infinite">Vô hạn</option> </select>
+            </div>
+
+            <div class="game-info">
+                <p>Lượt chơi: <span id="current-player">X</span></p>
+                <button id="reset-button">Chơi lại</button>
+            </div>
+            
+            <div id="game-message" class="game-message"></div>
+
+            <div class="ai-performance-metrics">
+                <p>Thời gian AI: <span id="ai-time">N/A</span> ms</p>
+                <p>Nút đã duyệt: <span id="ai-nodes">N/A</span></p>
+                <p>Độ sâu tìm kiếm: <span id="ai-depth-display">N/A</span></p>
+            </div>
+
+            <div class="game-modes">
+                <button id="player-vs-player-button">2 Người Chơi</button>
+                <button id="player-vs-ai-button">1 Người Chơi</button>
+                
+                <div id="ai-mode-selection" class="ai-mode-selection hidden">
+                    <button id="ai-minimax-button">AI Minimax</button>
+                    <button id="ai-alpha-beta-button">AI Alpha-Beta</button>
+                </div>
+                <div class="game-difficulty-settings">
+    <label for="ai-difficulty">Cấp độ AI:</label>
+    <select id="ai-difficulty">
+        <option value="EASY">Dễ</option>
+        <option value="MEDIUM" selected>Trung bình</option>
+        <option value="HARD">Khó</option>
+        <option value="EXPERT">Chuyên gia</option>
+    </select>
+</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
