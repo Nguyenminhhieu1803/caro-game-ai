@@ -3,51 +3,56 @@ let BOARD_SIZE = 3;
 let WIN_CONDITION = 3;
 // MAX_SEARCH_DEPTH không còn được dùng trực tiếp ở đây,
 // mà được lấy từ AI_DIFFICULTY_LEVELS.MAX_DEPTH
-const INFINITE_BOARD_SIZE = 30; // Kích thước của bàn cờ "vô hạn" (ví dụ 16x16)
+const INFINITE_BOARD_SIZE = 30; // Kích thước của bàn cờ "vô hạn" (ví dụ 30x30)
 
 // Định nghĩa các cấp độ khó cho AI
 const AI_DIFFICULTY_LEVELS = {
     EASY: {
-        MAX_DEPTH: 2,           // Độ sâu tìm kiếm nông
+        MAX_DEPTH: 4,           // Độ sâu tìm kiếm nông
         BLOCK_MULTIPLIER: 0.5,  // Ít ưu tiên phòng thủ hơn
         RANDOM_MOVE_CHANCE: 0.3 // 30% khả năng đi ngẫu nhiên
     },
     MEDIUM: {
-        MAX_DEPTH: 3,           // Độ sâu vừa phải
+        MAX_DEPTH: 6,           // Độ sâu vừa phải
         BLOCK_MULTIPLIER: 0.8,  // Ưu tiên phòng thủ vừa phải
         RANDOM_MOVE_CHANCE: 0   // Không đi ngẫu nhiên
     },
     HARD: {
-        MAX_DEPTH: 5,           // Độ sâu cao hơn
-        BLOCK_MULTIPLIER: 10,  // Ưu tiên phòng thủ cao
+        MAX_DEPTH: 7,           // Độ sâu cao hơn
+        BLOCK_MULTIPLIER: 15,   // Ưu tiên phòng thủ cao (đã tăng)
         RANDOM_MOVE_CHANCE: 0
     },
     EXPERT: { // Yêu cầu Alpha-Beta Pruning hiệu quả
-        MAX_DEPTH: 6,           // Độ sâu rất cao
-        BLOCK_MULTIPLIER: 20,  // Rất ưu tiên phòng thủ
+        MAX_DEPTH: 8,           // Độ sâu rất cao (có thể tăng lên 7-8 nếu Alpha-Beta ổn định)
+        BLOCK_MULTIPLIER: 30,   // Rất ưu tiên phòng thủ (đã tăng)
         RANDOM_MOVE_CHANCE: 0
     }
 };
 
 let currentAIDifficulty = AI_DIFFICULTY_LEVELS.MEDIUM; // Cấp độ mặc định khi khởi tạo
 
+// Giá trị điểm số heuristic (có thể điều chỉnh để thay đổi hành vi của AI)
+// Các giá trị này cực kỳ quan trọng để tinh chỉnh sức mạnh và chiến lược của AI.
 const SCORES = {
-    'WIN': 100000000,   
-    'LOSE': -100000000, // Thua vẫn là giá trị rất âm
-    'LIVE_FIVE': 10000000, 
-    'LIVE_FOUR': 1000000, // Điểm số cho Live Four của mình
-    'LIVE_THREE': 10000,  
-    'LIVE_TWO': 100,      
+    'WIN': 1000000000,   // Giá trị cực kỳ lớn và duy nhất
+    'LOSE': -1000000000, // Giá trị cực kỳ nhỏ và duy nhất
+    
+    // Đảm bảo các giá trị này không quá lớn để trùng với WIN/LOSE
+    'LIVE_FIVE': 900000000, //
+    'LIVE_FOUR': 50000000, //
+    'LIVE_THREE': 100000,  //
+    'LIVE_TWO': 1000,      //
 
-    'BLOCKED_FOUR': 10000, // Vẫn là điểm tấn công khi tự tạo
-    'BLOCKED_THREE': 100,  
-    'BLOCKED_TWO': 10,     
+    'BLOCKED_FOUR': 50000, //
+    'BLOCKED_THREE': 1000,  //
+    'BLOCKED_TWO': 100,     //
 
-    'DOUBLE_LIVE_FOUR': 10000000, // Điểm cho double Live Four của mình
-    'DOUBLE_LIVE_THREE': 100000, 
+    // DOUBLE_LIVE_FOUR là giá trị heuristic, phải thấp hơn WIN
+    'DOUBLE_LIVE_FOUR': 10000000, // Giữ ở mức này (10 triệu)
+    'DOUBLE_LIVE_THREE': 500000, //
 
-    'CENTER_WEIGHT': 50, 
-    'BLOCK_MULTIPLIER': 1.0 // Hệ số nhân cho điểm của đối thủ khi phòng thủ
+    'CENTER_WEIGHT': 1000, //
+    // BLOCK_MULTIPLIER được lấy từ currentAIDifficulty.BLOCK_MULTIPLIER
 };
 
 // DOM elements
@@ -403,14 +408,26 @@ function isBoardFull(currentBoard) {
     return true;
 }
 
-// Trong hàm evaluate(currentBoard):
-function evaluate(currentBoard) {
-    // Kiểm tra thắng/thua trực tiếp (ưu tiên cao nhất)
-    if (checkWin(0, 0, 'O', currentBoard)) return SCORES.WIN;
-    if (checkWin(0, 0, 'X', currentBoard)) return SCORES.LOSE; 
-    if (isBoardFull(currentBoard)) return 0; 
 
-    // Khai báo và tính toán occupiedCellsCount ngay tại đây, trong mỗi lần evaluate được gọi
+// Hàm đánh giá trạng thái bảng từ góc nhìn của AI ('O')
+function evaluate(currentBoard) {
+    // 1. Kiểm tra thắng/thua trực tiếp (ưu tiên cao nhất và tuyệt đối)
+    // Nếu AI (O) thắng, trả về điểm WIN cố định.
+    if (checkWin(0, 0, 'O', currentBoard)) {
+        console.log("EVALUATE: AI (O) wins. Returning absolute WIN score.");
+        return SCORES.WIN; 
+    }
+    // Nếu Người chơi (X) thắng, trả về điểm LOSE cố định.
+    if (checkWin(0, 0, 'X', currentBoard)) {
+        console.log("EVALUATE: Player (X) wins. Returning absolute LOSE score.");
+        return SCORES.LOSE; 
+    }
+    // Nếu bàn cờ đầy và không có ai thắng, trả về hòa (0).
+    if (isBoardFull(currentBoard)) {
+        console.log("EVALUATE: Board full. Returning DRAW score (0).");
+        return 0; 
+    }
+
     let occupiedCellsCount = 0;
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
@@ -420,7 +437,7 @@ function evaluate(currentBoard) {
         }
     }
     
-    // MẢNG NƯỚC ĐI TIỀM NĂNG
+
     const movesToCheck = [];
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
@@ -432,55 +449,66 @@ function evaluate(currentBoard) {
     if (movesToCheck.length === 0 && boardSizeSelect.value !== 'infinite') return 0;
 
     // QUAN TRỌNG: Kiểm tra các nước thắng trực tiếp (Win in 1) cho cả hai bên
+    // và các mối đe dọa cực kỳ nghiêm trọng (như Live Four, Double Live Three)
+    // mà có thể dẫn đến thắng/thua trong lượt tiếp theo.
     for (const { r, c } of movesToCheck) {
         // Giả định đối thủ đặt quân (X)
         currentBoard[r][c] = 'X';
         if (checkWin(r, c, 'X', currentBoard)) {
             currentBoard[r][c] = ''; // Hoàn tác
-            return SCORES.LOSE + (currentAIDifficulty.MAX_DEPTH * 10); // Điểm cực thấp nếu đối thủ thắng
+            console.log(`EVALUATE: Player (X) can win at (${r},${c}). Returning LOSE_THREAT score.`);
+            // Sử dụng điểm LOSE_THREAT để ưu tiên chặn
+            return SCORES.LOSE_THREAT; 
         }
-        currentBoard[r][c] = ''; // Hoàn tác
+        currentBoard[r][c] = ''; 
 
         // Giả định AI đặt quân (O)
         currentBoard[r][c] = 'O';
         if (checkWin(r, c, 'O', currentBoard)) {
             currentBoard[r][c] = ''; // Hoàn tác
-            return SCORES.WIN - (currentAIDifficulty.MAX_DEPTH * 10); // Điểm cực cao nếu AI thắng
+            console.log(`EVALUATE: AI (O) can win at (${r},${c}). Returning WIN_THREAT score.`);
+            // Sử dụng điểm WIN_THREAT để ưu tiên thắng
+            return SCORES.WIN_THREAT; 
         }
-        currentBoard[r][c] = ''; // Hoàn tác
+        currentBoard[r][c] = ''; 
     }
 
-    // Nếu không có nước thắng/thua trực tiếp, tính điểm heuristic tổng quát
-    let aiTotalScore = 0;
-    let playerTotalScore = 0;
+    // --- Nếu không có nước thắng/thua trực tiếp trong 1 bước, tính điểm heuristic tổng quát ---
+    console.log("No direct Win/Lose in 1 found. Calculating general heuristic.");
 
-    for (const { r, c } of movesToCheck) {
-        // Giả định AI đặt 'O'
+    let aiTotalScore = 0;
+    
+    for (const { r, c } of movesToCheck) {  
+        // Giả định AI đặt 'O' tại (r,c)
         currentBoard[r][c] = 'O';
         const aiScoreIfMove = calculatePlayerScore(currentBoard, 'O');
         currentBoard[r][c] = '';
 
         // Giả định Người chơi đặt 'X'
         currentBoard[r][c] = 'X';
-        const playerThreatScoreIfMove = calculatePlayerScore(currentBoard, 'X'); // Điểm mối đe dọa của người chơi
+        const playerThreatScoreIfMove = calculatePlayerScore(currentBoard, 'X'); // Đã sửa lỗi: gọi đúng hàm calculatePlayerScore
         currentBoard[r][c] = '';
 
-        // Điểm của AI là điểm mình tạo ra trừ đi điểm mối đe dọa của đối thủ
-        // AI ưu tiên nước nào vừa tạo được chuỗi tốt cho mình VÀ chặn được đối thủ hiệu quả
-        aiTotalScore += aiScoreIfMove - playerThreatScoreIfMove * currentAIDifficulty.BLOCK_MULTIPLIER;
+        // Log điểm tiềm năng của từng nước đi
+        console.log(`  Testing move (${r},${c}): AI Potential=${aiScoreIfMove}, PlayerThreat=${playerThreatScoreIfMove}`); 
+        
+        // Điểm của AI cho nước đi này: Điểm tấn công của mình trừ đi mối đe dọa của đối thủ
+        // Áp dụng BLOCK_MULTIPLIER để cân bằng công-thủ
+        let currentMoveFinalScore = aiScoreIfMove - playerThreatScoreIfMove * currentAIDifficulty.BLOCK_MULTIPLIER;
 
         // Ưu tiên trung tâm (cho ô trống)
         if (boardSizeSelect.value !== 'infinite' || occupiedCellsCount < 5) {
             const centerRow = Math.floor(BOARD_SIZE / 2);
             const centerCol = Math.floor(BOARD_SIZE / 2);
             const distFromCenter = Math.max(Math.abs(r - centerRow), Math.abs(c - centerCol));
-            aiTotalScore += SCORES.CENTER_WEIGHT * (1 - distFromCenter / (BOARD_SIZE / 2));
+            currentMoveFinalScore += SCORES.CENTER_WEIGHT * (1 - distFromCenter / (BOARD_SIZE / 2));
         }
+        aiTotalScore += currentMoveFinalScore;
+
+        console.log(`  Final Score for (${r},${c}) in this branch: ${currentMoveFinalScore}`); 
     }
     
-    // TRẢ VỀ TỔNG ĐIỂM
-    // Trong Minimax, điểm này sẽ được truyền lên.
-    // Nếu aiTotalScore quá thấp (vì playerThreatScoreIfMove cao), Minimax sẽ không chọn nước đó.
+
     return aiTotalScore;
 }
 
@@ -616,33 +644,203 @@ function getPatternScoreValue(pattern) {
     return 0; // Không có pattern nào quan trọng
 }
 
+// Hàm mới để làm nổi bật các ô trống mà AI nên xem xét (chỉ các ô chiến lược)
+function getRelevantMoves(currentBoard) {
+    const relevantCellsWithScores = new Map();
+
+    let occupiedCellsCount = 0;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (currentBoard[r][c] !== '') {
+                occupiedCellsCount++;
+            }
+        }
+    }
+
+    const allEmptyCells = [];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (currentBoard[r][c] === '') {
+                allEmptyCells.push({ r, c });
+            }
+        }
+    }
+
+
+    // --- 1. ƯU TIÊN TUYỆT ĐỐI CÁC NƯỚC THẮNG/CHẶN TRỰC TIẾP (WIN IN 1 / LOSE IN 1) ---
+    for (const { r, c } of allEmptyCells) {
+        // Giả định đối thủ đặt quân (X)
+        currentBoard[r][c] = 'X';
+        if (checkWin(r, c, 'X', currentBoard)) {
+            currentBoard[r][c] = ''; // Hoàn tác
+            relevantCellsWithScores.set(`${r},${c}`, SCORES.LOSE_THREAT); 
+            continue; 
+        }
+        currentBoard[r][c] = ''; 
+
+        // Giả định AI đặt quân (O)
+        currentBoard[r][c] = 'O';
+        if (checkWin(r, c, 'O', currentBoard)) {
+            currentBoard[r][c] = ''; // Hoàn tác
+            relevantCellsWithScores.set(`${r},${c}`, SCORES.WIN_THREAT); 
+            continue; 
+        }
+        currentBoard[r][c] = ''; 
+    }
+    if (relevantCellsWithScores.size > 0 && 
+        Array.from(relevantCellsWithScores.values()).some(score => score === SCORES.WIN_THREAT || score === SCORES.LOSE_THREAT)) {
+        
+        const sortedDirectThreats = Array.from(relevantCellsWithScores.entries())
+            .sort((a, b) => b[1] - a[1]) 
+            .map(([key, score]) => {
+                const [r, c] = key.split(',').map(Number);
+                return { r, c };
+            });
+        console.log(`getRelevantMoves: Returning ${sortedDirectThreats.length} direct Win/Lose moves.`);
+        return sortedDirectThreats;
+    }
+
+
+    // --- 2. Chiến lược khai cuộc (khi bàn cờ trống hoặc rất ít quân) ---
+    if (occupiedCellsCount < 2) { 
+        const centerR = Math.floor(BOARD_SIZE / 2);
+        const centerC = Math.floor(BOARD_SIZE / 2);
+        
+        if (currentBoard[centerR][centerC] === '') {
+             relevantCellsWithScores.set(`${centerR},${centerC}`, SCORES.CENTER_WEIGHT * 1000); 
+        }
+        
+        if (occupiedCellsCount === 0) {
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    if (i === 0 && j === 0) continue; 
+                    const r = centerR + i;
+                    const c = centerC + j;
+                    if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && currentBoard[r][c] === '') {
+                        relevantCellsWithScores.set(`${r},${c}`, SCORES.CENTER_WEIGHT * 500); 
+                    }
+                }
+            }
+        }
+    }
+
+    // --- 3. Chiến lược giữa game (khi đã có quân cờ) ---
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (currentBoard[r][c] !== '') { 
+                for (let dr_offset = -1; dr_offset <= 1; dr_offset++) { 
+                    for (let dc_offset = -1; dc_offset <= 1; dc_offset++) { 
+                        if (dr_offset === 0 && dc_offset === 0) continue; 
+
+                        const neighborR = r + dr_offset;
+                        const neighborC = c + dc_offset;
+
+                        if (neighborR >= 0 && neighborR < BOARD_SIZE &&
+                            neighborC >= 0 && neighborC < BOARD_SIZE &&
+                            currentBoard[neighborR][neighborC] === '') {
+                            
+                            const posKey = `${neighborR},${neighborC}`;
+                            // Xóa if (!relevantCellsWithScores.has(posKey)) ở đây
+                            // và di chuyển tính toán aiScoreIfMove/playerThreatScoreIfMove ra ngoài if đó
+                            // để đảm bảo chúng luôn được định nghĩa.
+                            
+                            // Giả định đặt quân AI và người chơi để đánh giá tiềm năng
+                            currentBoard[neighborR][neighborC] = 'O';
+                            const aiScoreIfMove = calculatePlayerScore(currentBoard, 'O'); // Khai báo const
+                            currentBoard[neighborR][neighborC] = '';
+
+                            currentBoard[neighborR][neighborC] = 'X';
+                            const playerThreatScoreIfMove = calculatePlayerScore(currentBoard, 'X'); // Khai báo const
+                            currentBoard[neighborR][neighborC] = '';
+
+                            let cellPotentialScore = (aiScoreIfMove * 1.5) - (playerThreatScoreIfMove * 2.0); 
+
+                            // Chỉ thêm vào Map nếu ô đó chưa có hoặc nếu điểm mới tốt hơn
+                            // hoặc nếu điểm mới đáng kể (công hoặc thủ)
+                            if (relevantCellsWithScores.has(posKey)) {
+                                const existingScore = relevantCellsWithScores.get(posKey);
+                                if (Math.abs(cellPotentialScore) > Math.abs(existingScore)) { // Lấy điểm tốt hơn
+                                     relevantCellsWithScores.set(posKey, cellPotentialScore);
+                                }
+                            } else if (cellPotentialScore > 0 || cellPotentialScore < 0) { // Chỉ thêm nếu có điểm đáng kể
+                                relevantCellsWithScores.set(posKey, cellPotentialScore);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- 4. Fallback an toàn (nếu không tìm thấy nước đi chiến lược nào) ---
+    if (relevantCellsWithScores.size === 0 && occupiedCellsCount < BOARD_SIZE * BOARD_SIZE) {
+        const fallbackRandomMove = allEmptyCells[Math.floor(Math.random() * allEmptyCells.length)]; // Lấy 1 ô ngẫu nhiên
+        if (fallbackRandomMove) {
+            relevantCellsWithScores.set(`${fallbackRandomMove.r},${fallbackRandomMove.c}`, 1); // Gán điểm thấp
+        }
+
+        // Thêm một vài ô ngẫu nhiên xung quanh trung tâm nếu bàn cờ còn rất trống (occupiedCellsCount < 2)
+        if (occupiedCellsCount < 2) {
+             const centerR = Math.floor(BOARD_SIZE / 2);
+             const centerC = Math.floor(BOARD_SIZE / 2);
+             for (let i = -2; i <= 2; i++) { 
+                 for (let j = -2; j <= 2; j++) {
+                     const r = centerR + i;
+                     const c = centerC + j;
+                     const posKey = `${r},${c}`;
+                     if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && currentBoard[r][c] === '' && !relevantCellsWithScores.has(posKey)) {
+                         relevantCellsWithScores.set(posKey, SCORES.CENTER_WEIGHT * 0.1); 
+                     }
+                 }
+             }
+        } else { // Giữa game, nếu không có relevant moves, và không phải khai cuộc, thêm vài ô random
+            // Logic này đã được cover khá tốt bởi `allEmptyCells` fallback ở trên
+            // và việc `relevantCellsWithScores` luôn có ít nhất 1 nước.
+        }
+    }
+
+
+    // Sắp xếp các ô theo điểm số giảm dần và giới hạn số lượng trả về
+    const sortedRelevantCells = Array.from(relevantCellsWithScores.entries())
+        .sort((a, b) => b[1] - a[1]) 
+        .map(([key, score]) => {
+            const [r, c] = key.split(',').map(Number);
+            return { r, c };
+        });
+
+    return sortedRelevantCells.slice(0, 50); // Giới hạn số lượng ô trả về (tối đa 50)
+}
+
 // AI LOGIC (Minimax and Alpha-Beta)
 function makeAIMove() {
     displayMessage('AI đang suy nghĩ...');
     let bestMove = null;
     nodesVisited = 0; 
 
+    console.log("AI Turn: Starting makeAIMove. CurrentPlayer:", currentPlayer); // Log khởi đầu
+
     // Bước 1: Làm nổi bật các ô trống NGAY LẬP TỨC
     highlightPotentialAIMoves();
+    console.log("AI Turn: Called highlightPotentialAIMoves(). Waiting 1000ms for calculation."); // Log gọi hàm
 
-    setTimeout(() => {
+    setTimeout(() => { // Timeout đầu tiên: chờ chấm hiện, sau đó tính toán AI
         let startTime = performance.now();
 
         const boardCopy = board.map(row => [...row]); 
 
-        // Áp dụng yếu tố ngẫu nhiên cho cấp độ dễ
-        if (currentAIDifficulty.RANDOM_MOVE_CHANCE > 0 && Math.random() < currentAIDifficulty.RANDOM_MOVE_CHANCE) {
-            bestMove = findBestMoveRandom(boardCopy);
-            console.log("AI took a random move (due to difficulty setting).");
+        // Xác định độ sâu tìm kiếm thực tế dựa trên cấp độ khó VÀ kích thước bàn cờ
+        let actualMaxDepth = currentAIDifficulty.MAX_DEPTH;
+        if (BOARD_SIZE > 10) { // Nếu bàn cờ rất lớn (ví dụ > 10x10)
+            if (actualMaxDepth > 4) actualMaxDepth = 4; 
+            if (actualMaxDepth > 2 && aiAlgorithm === 'minimax') actualMaxDepth = 2; 
+        }
+
+        if (aiAlgorithm === 'minimax') {
+            bestMove = findBestMoveMinimax(boardCopy, currentPlayer, actualMaxDepth); 
+        } else if (aiAlgorithm === 'alpha-beta') {
+            bestMove = findBestMoveAlphaBeta(boardCopy, currentPlayer, actualMaxDepth); 
         } else {
-            // Chọn thuật toán dựa trên aiAlgorithm và độ sâu từ cấp độ khó
-            if (aiAlgorithm === 'minimax') {
-                bestMove = findBestMoveMinimax(boardCopy, currentPlayer, currentAIDifficulty.MAX_DEPTH); 
-            } else if (aiAlgorithm === 'alpha-beta') {
-                bestMove = findBestMoveAlphaBeta(boardCopy, currentPlayer, currentAIDifficulty.MAX_DEPTH); 
-            } else {
-                bestMove = findBestMoveRandom(boardCopy); 
-            }
+            bestMove = findBestMoveRandom(boardCopy); 
         }
         
         let endTime = performance.now();
@@ -650,95 +848,72 @@ function makeAIMove() {
 
         aiTimeSpan.textContent = `${duration.toFixed(2)}`;
         aiNodesSpan.textContent = nodesVisited;
-        aiDepthDisplaySpan.textContent = currentAIDifficulty.MAX_DEPTH; // Hiển thị độ sâu thực tế
+        aiDepthDisplaySpan.textContent = actualMaxDepth; 
 
-        clearPotentialAIMoves(); // Xóa các chấm sau khi AI đã chọn nước đi
+        console.log("AI Turn: Calculation finished. BestMove:", bestMove, "Duration:", duration); 
+
+        // BƯỚC 2: Xóa các chấm SAU KHI AI đã chọn nước đi
+        clearPotentialAIMoves();
+        console.log("AI Turn: Called clearPotentialAIMoves()."); 
 
         if (bestMove) {
-            setTimeout(() => {
-                const cellToClick = boardElement.querySelector(`.cell[data-row="${bestMove.row}"][data-col="${bestMove.col}"]`);
-                
-                if (cellToClick) {
-                    if (board[bestMove.row][bestMove.col] === '') { 
-                        cellToClick.click();
+    // Thêm một setTimeout nhỏ hơn để đảm bảo DOM có thời gian cập nhật sau khi xóa chấm
+    setTimeout(() => { // Timeout thứ hai: chờ DOM cập nhật, sau đó click
+        // Lấy lại cellElement NGAY TRƯỚC KHI CLICK để đảm bảo nó là phiên bản mới nhất trong DOM
+        const cellToClick = boardElement.querySelector(`.cell[data-row="${bestMove.r}"][data-col="${bestMove.c}"]`);
+        
+        if (cellToClick && boardElement.contains(cellToClick)) { // Kiểm tra cellToClick và đảm bảo nó vẫn thuộc DOM của boardElement
+            if (board[bestMove.r][bestMove.c] === '') { 
+                console.log(`AI Turn: Attempting to click cell (${bestMove.r}, ${bestMove.c}).`);
+                cellToClick.click();
+            } else {
+                console.warn(`AI selected an already occupied cell: (${bestMove.r}, ${bestMove.c}). This should not happen with a correct Minimax. Attempting a random fallback move.`);
+                const fallbackMove = findBestMoveRandom(board);
+                if (fallbackMove) {
+                    const fallbackCell = boardElement.querySelector(`.cell[data-row="${fallbackMove.r}"][data-col="${fallbackMove.c}"]`);
+                    if (fallbackCell && board[fallbackMove.r][fallbackMove.c] === '') {
+                        console.log(`AI Turn: Clicking fallback cell (${fallbackMove.r}, ${fallbackMove.c}).`);
+                        fallbackCell.click();
                     } else {
-                        console.warn(`AI selected an already occupied cell: (${bestMove.row}, ${bestMove.col}). This should not happen with a correct Minimax. Attempting a random fallback move.`);
-                        const fallbackMove = findBestMoveRandom(board);
-                        if (fallbackMove) {
-                            const fallbackCell = boardElement.querySelector(`.cell[data-row="${fallbackMove.row}"][data-col="${fallbackMove.col}"]`);
-                            if (fallbackCell && board[fallbackMove.row][fallbackMove.col] === '') {
-                                fallbackCell.click();
-                            } else {
-                                displayMessage('Lỗi: AI không tìm được ô trống nào, kể cả ngẫu nhiên.', true);
-                            }
-                        } else {
-                            displayMessage('AI không tìm được nước đi hợp lệ.', true);
-                        }
+                        displayMessage('Lỗi: AI không tìm được ô trống nào, kể cả ngẫu nhiên.', true);
                     }
                 } else {
-                    console.error("AI's bestMove cell element not found in DOM for clicking!", bestMove);
-                    displayMessage('Lỗi: AI không tìm thấy ô để đánh trên giao diện.', true);
+                    displayMessage('AI không tìm được nước đi hợp lệ.', true);
                 }
-            }, 200); 
-            
+            }
         } else {
-            displayMessage('AI không tìm thấy nước đi! (Có thể do hết ô trống)', true);
+            console.error("AI's bestMove cell element not found or detached from DOM! Move details:", bestMove, "BoardElement:", boardElement, "Found cell:", cellToClick); // Log chi tiết hơn
+            displayMessage('Lỗi: AI không tìm thấy ô để đánh trên giao diện (lỗi DOM).', true);
         }
-    }, 1000); 
+    }, 300); // Tăng độ trễ lên 300ms (từ 200ms) để cho DOM có thêm thời gian cập nhật
+             // Có thể thử 500ms nếu 300ms vẫn không đủ.
+    
+} else {
+    console.warn("AI Turn: No best move found. Board might be full or no valid moves."); 
+    displayMessage('AI không tìm thấy nước đi! (Có thể do hết ô trống)', true);
+}
+    }, 1000); // Timeout đầu tiên: giữ 1 giây để chấm hiện rõ
 }
 
-// Hàm mới để làm nổi bật các ô trống mà AI thực sự quan tâm (trong bán kính 2 ô quanh quân cờ)
+// Hàm để làm nổi bật các ô trống mà AI thực sự quan tâm (các ô chiến lược)
 function highlightPotentialAIMoves() {
     console.log("Highlighting potential AI moves..."); 
     let highlightedCount = 0;
-    const cellsToHighlight = new Set(); // Sử dụng Set để lưu trữ các vị trí duy nhất
-
-    // Duyệt qua tất cả các ô đã có quân cờ
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (board[r][c] !== '') { // Nếu ô này đã có quân
-                // Xem xét các ô lân cận (trong bán kính nhỏ)
-                for (let dr_offset = -2; dr_offset <= 2; dr_offset++) { // Phạm vi +/- 2 hàng
-                    for (let dc_offset = -2; dc_offset <= 2; dc_offset++) { // Phạm vi +/- 2 cột
-                        // Bỏ qua chính ô đang xét
-                        if (dr_offset === 0 && dc_offset === 0) continue; 
-
-                        const neighborR = r + dr_offset;
-                        const neighborC = c + dc_offset;
-
-                        // Kiểm tra xem ô lân cận có hợp lệ và trống không
-                        if (neighborR >= 0 && neighborR < BOARD_SIZE &&
-                            neighborC >= 0 && neighborC < BOARD_SIZE &&
-                            board[neighborR][neighborC] === '') {
-                            // Thêm vị trí vào Set (đảm bảo không trùng lặp)
-                            cellsToHighlight.add(`${neighborR},${neighborC}`);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Nếu không có quân cờ nào trên bàn cờ (ván mới), highlight ô trung tâm
-    if (cellsToHighlight.size === 0 && BOARD_SIZE > 0) {
-        const centerR = Math.floor(BOARD_SIZE / 2);
-        const centerC = Math.floor(BOARD_SIZE / 2);
-        if (board[centerR][centerC] === '') {
-             cellsToHighlight.add(`${centerR},${centerC}`);
-        }
-    }
-
+    
+    // Sử dụng hàm getRelevantMoves để lấy danh sách các ô tiềm năng chiến lược
+    // Hàm getRelevantMoves đã được thiết kế để chỉ trả về các ô có ý nghĩa chiến lược
+    // (những ô gần quân cờ, trung tâm, hoặc có tiềm năng tạo chuỗi/chặn)
+    const cellsToHighlight = getRelevantMoves(board); //
 
     // Duyệt qua các vị trí đã thu thập và áp dụng class
-    cellsToHighlight.forEach(pos => {
-        const [r, c] = pos.split(',').map(Number);
-        const cellElement = boardElement.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+    cellsToHighlight.forEach(move => {
+        const cellElement = boardElement.querySelector(`.cell[data-row="${move.r}"][data-col="${move.c}"]`);
         if (cellElement) {
             cellElement.classList.add('ai-potential-move');
-            // cellElement.classList.add('ai-potential-dot'); // Tùy chọn: nếu muốn chấm tròn
+            // cellElement.classList.add('ai-potential-dot'); // Tùy chọn: nếu bạn muốn chấm tròn, hãy thêm class này và đảm bảo CSS cho nó
             highlightedCount++;
         } else {
-            console.warn(`Cell element at (${r}, ${c}) not found for highlighting.`);
+            console.warn(`Cell element at (${move.r}, ${move.c}) not found for highlighting.`);
         }
     });
 
@@ -781,37 +956,42 @@ function minimaxNoPruning(currentBoard, currentDepth, isMaximizingPlayer, maxSea
     let score = evaluate(currentBoard); 
 
     if (score !== null) {
-        if (score === SCORES.WIN) return score - currentDepth;
-        if (score === SCORES.LOSE) return score + currentDepth;
-        return score; 
+        return score; // <-- Dòng này là ĐÚNG. Đảm bảo KHÔNG CÓ dòng "return score;" nào khác ngay SAU NÓ.
     }
 
-    if (currentDepth === maxSearchDepth) { // So sánh với độ sâu tìm kiếm tối đa được truyền vào
-        return evaluate(currentBoard); 
+    if (currentDepth === maxSearchDepth) { 
+        return evaluate(currentBoard); // <-- Dòng này là ĐÚNG. Đảm bảo KHÔNG CÓ dòng "return score;" nào khác ngay SAU NÓ.
     }
 
-    if (isMaximizingPlayer) { 
-        let bestScore = -Infinity;
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-                if (currentBoard[r][c] === '') {
-                    currentBoard[r][c] = 'O'; 
-                    bestScore = Math.max(bestScore, minimaxNoPruning(currentBoard, currentDepth + 1, false, maxSearchDepth)); 
-                    currentBoard[r][c] = ''; 
-                }
+    // Lấy các nước đi khả thi để AI xem xét trong Minimax
+    const movesToSimulate = [];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (currentBoard[r][c] === '') {
+                movesToSimulate.push({r, c});
             }
         }
+    }
+
+    // QUAN TRỌNG: Nếu không có nước đi khả thi nào trong nhánh này (thực tế là hòa/bế tắc)
+    if (movesToSimulate.length === 0) {
+        return 0; // Trả về 0 cho trạng thái hòa/bế tắc trong nhánh đệ quy
+    }
+
+    if (isMaximizingPlayer) { // Lượt của người chơi tối đa hóa (AI - 'O')
+        let bestScore = -Infinity;
+        for (const move of movesToSimulate) { // Duyệt qua các nước đi khả thi
+            currentBoard[move.r][move.c] = 'O'; 
+            bestScore = Math.max(bestScore, minimaxNoPruning(currentBoard, currentDepth + 1, false, maxSearchDepth)); 
+            currentBoard[move.r][move.c] = ''; // Hoàn tác nước đi
+        }
         return bestScore;
-    } else { 
+    } else { // Lượt của người chơi tối thiểu hóa (Người chơi - 'X')
         let bestScore = Infinity;
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-                if (currentBoard[r][c] === '') {
-                    currentBoard[r][c] = 'X'; 
-                    bestScore = Math.min(bestScore, minimaxNoPruning(currentBoard, currentDepth + 1, true, maxSearchDepth)); 
-                    currentBoard[r][c] = ''; 
-                }
-            }
+        for (const move of movesToSimulate) { 
+            currentBoard[move.r][move.c] = 'X'; 
+            bestScore = Math.min(bestScore, minimaxNoPruning(currentBoard, currentDepth + 1, true, maxSearchDepth)); 
+            currentBoard[move.r][move.c] = ''; 
         }
         return bestScore;
     }
@@ -819,27 +999,30 @@ function minimaxNoPruning(currentBoard, currentDepth, isMaximizingPlayer, maxSea
 
 // Hàm tìm nước đi tốt nhất bằng Minimax CHỈ (không cắt tỉa)
 function findBestMoveMinimax(currentBoard, player, maxSearchDepth) { // maxSearchDepth được truyền từ makeAIMove
-    let bestScore = -Infinity;
-    let bestMove = null;
-    let availableMoves = [];
+    const movesToEvaluate = getRelevantMoves(currentBoard); 
 
-    // Lấy tất cả các nước đi trống
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (currentBoard[r][c] === '') {
-                availableMoves.push({ row: r, col: c });
-            }
+    if (movesToEvaluate.length === 0) {
+        const fallbackRandomMove = findBestMoveRandom(currentBoard); 
+        if (fallbackRandomMove) {
+            console.warn("No relevant moves found for Minimax, returning random fallback move.");
+            return fallbackRandomMove;
         }
-    }
-
-    if (availableMoves.length === 0) {
         return null;
     }
 
-    for (const move of availableMoves) {
-        currentBoard[move.row][move.col] = player;
-        let score = minimaxNoPruning(currentBoard, 0, false, maxSearchDepth); // Gọi phiên bản không cắt tỉa
-        currentBoard[move.row][move.col] = '';
+    // KHỞI TẠO bestMove VÀ bestScore BẰNG NƯỚC ĐI ĐẦU TIÊN
+    // Điều này đảm bảo bestMove luôn có giá trị hợp lệ nếu movesToEvaluate không trống
+    let bestMove = movesToEvaluate[0];
+    currentBoard[bestMove.r][bestMove.c] = player; // Giả định đặt quân
+    let bestScore = minimaxNoPruning(currentBoard, 0, false, maxSearchDepth); 
+    currentBoard[bestMove.r][bestMove.c] = ''; // Hoàn tác (Đã sửa lỗi chính tả)
+
+    // Duyệt qua các nước còn lại (bắt đầu từ index 1)
+    for (let i = 1; i < movesToEvaluate.length; i++) { 
+        const move = movesToEvaluate[i];
+        currentBoard[move.r][move.c] = player; 
+        let score = minimaxNoPruning(currentBoard, 0, false, maxSearchDepth); 
+        currentBoard[move.r][move.c] = ''; // Hoàn tác (Đã sửa lỗi chính tả)
 
         if (score > bestScore) {
             bestScore = score;
@@ -851,52 +1034,57 @@ function findBestMoveMinimax(currentBoard, player, maxSearchDepth) { // maxSearc
 
 
 // --- Thuật toán Minimax CÓ CẮT TỈA ALPHA-BETA ---
-function minimax(currentBoard, currentDepth, isMaximizingPlayer, alpha, beta, maxSearchDepth) { // Thêm maxSearchDepth
+function minimax(currentBoard, currentDepth, isMaximizingPlayer, alpha, beta, maxSearchDepth) { 
     nodesVisited++; 
 
     let score = evaluate(currentBoard); 
 
     if (score !== null) {
-        if (score === SCORES.WIN) return score - currentDepth;
-        if (score === SCORES.LOSE) return score + currentDepth;
-        return score; 
+        return score; // <-- Dòng này là ĐÚNG. Đảm bảo KHÔNG CÓ dòng "return score;" nào khác ngay SAU NÓ.
     }
 
-    if (currentDepth === maxSearchDepth) { // So sánh với độ sâu tìm kiếm tối đa được truyền vào
-        return evaluate(currentBoard); 
+    if (currentDepth === maxSearchDepth) { 
+        return evaluate(currentBoard); // <-- Dòng này là ĐÚNG. Đảm bảo KHÔNG CÓ dòng "return score;" nào khác ngay SAU NÓ.
     }
 
-    if (isMaximizingPlayer) { 
+    // Logic lấy nước đi để AI xem xét trong Minimax
+    const movesToSimulate = [];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (currentBoard[r][c] === '') {
+                movesToSimulate.push({r, c});
+            }
+        }
+    }
+
+    // QUAN TRỌNG: Nếu không có nước đi khả thi nào trong nhánh này
+    if (movesToSimulate.length === 0) {
+        return 0; // Trả về 0 cho trạng thái hòa/bế tắc trong nhánh đệ quy
+    }
+
+    if (isMaximizingPlayer) { // Lượt của người chơi tối đa hóa (AI - 'O')
         let bestScore = -Infinity;
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-                if (currentBoard[r][c] === '') {
-                    currentBoard[r][c] = 'O'; 
-                    bestScore = Math.max(bestScore, minimax(currentBoard, currentDepth + 1, false, alpha, beta, maxSearchDepth));
-                    currentBoard[r][c] = ''; 
+        for (const move of movesToSimulate) { 
+            currentBoard[move.r][move.c] = 'O'; 
+            bestScore = Math.max(bestScore, minimax(currentBoard, currentDepth + 1, false, alpha, beta, maxSearchDepth));
+            currentBoard[move.r][c] = ''; 
 
-                    alpha = Math.max(alpha, bestScore); 
-                    if (beta <= alpha) { 
-                        break; 
-                    }
-                }
+            alpha = Math.max(alpha, bestScore); 
+            if (beta <= alpha) { 
+                break; 
             }
         }
         return bestScore;
-    } else { 
+    } else { // Lượt của người chơi tối thiểu hóa (Người chơi - 'X')
         let bestScore = Infinity;
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-                if (currentBoard[r][c] === '') {
-                    currentBoard[r][c] = 'X'; 
-                    bestScore = Math.min(bestScore, minimax(currentBoard, currentDepth + 1, true, alpha, beta, maxSearchDepth)); 
-                    currentBoard[r][c] = ''; 
+        for (const move of movesToSimulate) { 
+            currentBoard[move.r][move.c] = 'X'; 
+            bestScore = Math.min(bestScore, minimax(currentBoard, currentDepth + 1, true, alpha, beta, maxSearchDepth)); 
+            currentBoard[move.r][c] = ''; 
 
-                    beta = Math.min(beta, bestScore); 
-                    if (beta <= alpha) { 
-                        break;
-                    }
-                }
+            beta = Math.min(beta, bestScore); 
+            if (beta <= alpha) { 
+                break;
             }
         }
         return bestScore;
@@ -904,30 +1092,37 @@ function minimax(currentBoard, currentDepth, isMaximizingPlayer, alpha, beta, ma
 }
 
 // Hàm tìm nước đi tốt nhất bằng Minimax với cắt tỉa Alpha-Beta
-function findBestMoveAlphaBeta(currentBoard, player, maxSearchDepth) { // maxSearchDepth được truyền từ makeAIMove
-    let bestScore = -Infinity;
-    let bestMove = null;
-    let availableMoves = [];
+function findBestMoveAlphaBeta(currentBoard, player, maxSearchDepth) { 
+    const movesToEvaluate = getRelevantMoves(currentBoard); 
 
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (currentBoard[r][c] === '') {
-                availableMoves.push({ row: r, col: c });
-            }
+    if (movesToEvaluate.length === 0) {
+        const fallbackRandomMove = findBestMoveRandom(currentBoard);
+        if (fallbackRandomMove) {
+            console.warn("No relevant moves found for Alpha-Beta, returning random fallback move.");
+            return fallbackRandomMove;
         }
-    }
-
-    if (availableMoves.length === 0) {
         return null;
     }
+
+    // KHỞI TẠO bestMove VÀ bestScore BẰNG NƯỚC ĐI ĐẦU TIÊN
+    // Điều này đảm bảo bestMove luôn có giá trị hợp lệ nếu movesToEvaluate không trống
+    let bestMove = movesToEvaluate[0];
+    currentBoard[bestMove.r][bestMove.c] = player; // Giả định đặt quân
+    let bestScore = minimax(currentBoard, 0, false, -Infinity, Infinity, maxSearchDepth); 
+    currentBoard[bestMove.r][bestMove.c] = ''; // Hoàn tác (Đã sửa lỗi chính tả)
 
     let alpha = -Infinity;
     let beta = Infinity;
 
-    for (const move of availableMoves) {
-        currentBoard[move.row][move.col] = player; 
+    // Cập nhật alpha ban đầu dựa trên nước đi đầu tiên đã đánh giá
+    alpha = Math.max(alpha, bestScore); 
+
+    // Duyệt qua các nước còn lại (bắt đầu từ index 1)
+    for (let i = 1; i < movesToEvaluate.length; i++) { 
+        const move = movesToEvaluate[i];
+        currentBoard[move.r][move.c] = player; 
         let score = minimax(currentBoard, 0, false, alpha, beta, maxSearchDepth); 
-        currentBoard[move.row][move.col] = '';
+        currentBoard[move.r][move.c] = ''; // Hoàn tác (Đã sửa lỗi chính tả)
 
         if (score > bestScore) {
             bestScore = score;
